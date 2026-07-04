@@ -35,7 +35,7 @@ def get_next_topic():
 
 def generate_script(topic: str) -> str:
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-2.0-flash")
 
     prompt = f"""Tum ek expert Hindi horror story YouTube script writer ho.
 Topic: {topic}
@@ -57,7 +57,7 @@ Sirf final script do, koi extra explanation nahi."""
 
 def generate_title_description(topic: str, script: str) -> dict:
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-1.5-flash")
+    model = genai.GenerativeModel("gemini-2.0-flash")
 
     prompt = f"""Is horror story ke liye ek clickable YouTube title aur description do.
 Topic: {topic}
