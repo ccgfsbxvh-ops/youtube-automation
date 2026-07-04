@@ -28,9 +28,6 @@ jobs:
       - name: Restore YouTube token
         run: echo "${{ secrets.YT_TOKEN_PICKLE_B64 }}" | base64 -d > token.pickle
 
-      - name: Restore Google client secret
-        run: echo "${{ secrets.YT_CLIENT_SECRET_B64 }}" | base64 -d > client_secret.json
-
       - name: Run pipeline
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
