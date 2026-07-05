@@ -1,6 +1,7 @@
 """
 generate_script.py -- ek horror script generate karta hai using Gemini (free tier).
-Topic pool se ek topic pick karta hai jo abhi tak use nahi hua (used_topics.json track karta hai).
+Script + title + description SAB EK HI API call mein generate karta hai
+(quota bachane ke liye -- pehle 2 calls the, ab sirf 1).
 Quota/rate-limit error aane par khud retry karta hai.
 """
 
@@ -13,8 +14,8 @@ from config import GEMINI_API_KEY, TOPIC_POOL, SCRIPT_FILE, OUTPUT_DIR
 
 USED_TOPICS_FILE = "used_topics.json"
 MODEL_NAME = "gemini-2.0-flash"
-MAX_RETRIES = 4
-RETRY_WAIT_SECONDS = 30
+MAX_RETRIES = 5
+RETRY_WAIT_SECONDS = 20
 
 
 def get_next_topic():
@@ -54,41 +55,33 @@ def _call_with_retry(model, prompt):
     raise last_error
 
 
-def generate_script(topic: str) -> str:
+def generate_everything(topic: str) -> dict:
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel(MODEL_NAME)
 
     prompt = f"""Tum ek expert Hindi horror story YouTube script writer ho.
 Topic: {topic}
 
-Ek 7-8 minute ka (roughly 900-1100 words) horror narration script likho jo:
-- Simple bolchaal ki Hindi mein ho (Hinglish thoda chalega but mostly Hindi)
-- Ek strong hook se shuru ho (pehle 10 second mein curiosity banao)
+Mujhe teen cheezein chahiye, STRICTLY JSON format mein (koi extra text, koi markdown backticks nahi):
+
+{{
+  "script": "yahan pura 900-1100 words ka Hindi horror narration script",
+  "title": "yahan YouTube title, max 80 characters",
+  "description": "yahan YouTube description, 3-4 lines"
+}}
+
+Script rules:
+- Simple bolchaal ki Hindi (Hinglish thoda chalega but mostly Hindi)
+- Strong hook se shuru (pehle 10 second mein curiosity)
 - Slow build-up, phir climax, phir twist ending
-- Second person ya first person narrator style mein ho, jaise koi kahani suna raha ho
-- Beech beech mein "dosto", "ab suniye aage" jaise engagement phrases ho
-- Sirf narration text do, koi stage directions ya headings nahi, seedha bolne wala script
-- End mein "channel ko subscribe karo agli kahani ke liye" jaisa CTA daalo
+- Beech beech mein "dosto", "ab suniye aage" jaise engagement phrases
+- Sirf narration text, koi stage directions ya headings nahi
+- End mein "channel ko subscribe karo agli kahani ke liye" jaisa CTA
 
-Sirf final script do, koi extra explanation nahi."""
+Title rules: curiosity-driven, emoji ok, Hindi/Hinglish.
+Description rules: story ka hook, subscribe request, phir hashtags.
 
-    response = _call_with_retry(model, prompt)
-    return response.text.strip()
-
-
-def generate_title_description(topic: str, script: str) -> dict:
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel(MODEL_NAME)
-
-    prompt = f"""Is horror story ke liye ek clickable YouTube title aur description do.
-Topic: {topic}
-Script (pehle 300 chars): {script[:300]}
-
-Format strictly JSON mein do, kuch aur text nahi:
-{{"title": "...", "description": "..."}}
-
-Title rules: max 80 characters, curiosity-driven, emoji ok, Hindi/Hinglish.
-Description rules: 3-4 lines, story ka hook, phir subscribe request, phir hashtags."""
+Sirf JSON do, kuch aur nahi."""
 
     response = _call_with_retry(model, prompt)
     text = response.text.strip().replace("```json", "").replace("```", "").strip()
@@ -100,12 +93,13 @@ if __name__ == "__main__":
     topic = get_next_topic()
     print(f"Selected topic: {topic}")
 
-    script = generate_script(topic)
-    with open(SCRIPT_FILE, "w", encoding="utf-8") as f:
-        f.write(script)
-    print(f"Script saved to {SCRIPT_FILE} ({len(script.split())} words)")
+    result = generate_everything(topic)
 
-    meta = generate_title_description(topic, script)
+    with open(SCRIPT_FILE, "w", encoding="utf-8") as f:
+        f.write(result["script"])
+    print(f"Script saved to {SCRIPT_FILE} ({len(result['script'].split())} words)")
+
+    meta = {"title": result["title"], "description": result["description"]}
     with open(f"{OUTPUT_DIR}/metadata.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
     print(f"Title: {meta['title']}")
