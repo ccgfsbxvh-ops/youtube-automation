@@ -1,19 +1,23 @@
 """
 generate_script.py -- ek horror script generate karta hai using Gemini (free tier).
 Topic pool se ek topic pick karta hai jo abhi tak use nahi hua (used_topics.json track karta hai).
+Quota/rate-limit error aane par khud retry karta hai.
 """
 
 import json
 import os
 import random
+import time
 import google.generativeai as genai
 from config import GEMINI_API_KEY, TOPIC_POOL, SCRIPT_FILE, OUTPUT_DIR
 
 USED_TOPICS_FILE = "used_topics.json"
+MODEL_NAME = "gemini-2.0-flash"
+MAX_RETRIES = 4
+RETRY_WAIT_SECONDS = 30
 
 
 def get_next_topic():
-    """Pehle unused topic pool se pick karo, sab use ho gaye toh reset karo."""
     if os.path.exists(USED_TOPICS_FILE):
         with open(USED_TOPICS_FILE, "r") as f:
             used = json.load(f)
@@ -33,9 +37,26 @@ def get_next_topic():
     return topic
 
 
+def _call_with_retry(model, prompt):
+    last_error = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            return model.generate_content(prompt)
+        except Exception as e:
+            last_error = e
+            msg = str(e)
+            if "429" in msg or "quota" in msg.lower() or "rate" in msg.lower():
+                wait = RETRY_WAIT_SECONDS * attempt
+                print(f"Quota/rate limit hit (attempt {attempt}/{MAX_RETRIES}). Waiting {wait}s...")
+                time.sleep(wait)
+                continue
+            raise
+    raise last_error
+
+
 def generate_script(topic: str) -> str:
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel(MODEL_NAME)
 
     prompt = f"""Tum ek expert Hindi horror story YouTube script writer ho.
 Topic: {topic}
@@ -51,13 +72,13 @@ Ek 7-8 minute ka (roughly 900-1100 words) horror narration script likho jo:
 
 Sirf final script do, koi extra explanation nahi."""
 
-    response = model.generate_content(prompt)
+    response = _call_with_retry(model, prompt)
     return response.text.strip()
 
 
 def generate_title_description(topic: str, script: str) -> dict:
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel(MODEL_NAME)
 
     prompt = f"""Is horror story ke liye ek clickable YouTube title aur description do.
 Topic: {topic}
@@ -69,7 +90,7 @@ Format strictly JSON mein do, kuch aur text nahi:
 Title rules: max 80 characters, curiosity-driven, emoji ok, Hindi/Hinglish.
 Description rules: 3-4 lines, story ka hook, phir subscribe request, phir hashtags."""
 
-    response = model.generate_content(prompt)
+    response = _call_with_retry(model, prompt)
     text = response.text.strip().replace("```json", "").replace("```", "").strip()
     return json.loads(text)
 
