@@ -6,6 +6,7 @@ Ye hi file GitHub Actions daily run karega.
 """
 
 import os
+import json
 import traceback
 from config import OUTPUT_DIR
 
@@ -13,20 +14,17 @@ def run():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     print("== Step 1: Generating script ==")
-    import generate_script
-    generate_script.__name__ = "__main__"  # noop, just for clarity
-
-    from generate_script import get_next_topic, generate_script as gen_script, generate_title_description
-    import json
+    from generate_script import get_next_topic, generate_everything
     from config import SCRIPT_FILE
 
     topic = get_next_topic()
     print(f"Topic: {topic}")
-    script = gen_script(topic)
+    result = generate_everything(topic)
+    script = result["script"]
     with open(SCRIPT_FILE, "w", encoding="utf-8") as f:
         f.write(script)
 
-    meta = generate_title_description(topic, script)
+    meta = {"title": result["title"], "description": result["description"]}
     with open(f"{OUTPUT_DIR}/metadata.json", "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
     print(f"Title: {meta['title']}")
