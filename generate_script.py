@@ -13,7 +13,7 @@ import google.generativeai as genai
 from config import GEMINI_API_KEY, TOPIC_POOL, SCRIPT_FILE, OUTPUT_DIR
 
 USED_TOPICS_FILE = "used_topics.json"
-MODEL_NAME = "MODEL_NAME = "gemini-2.0-flash-lite"
+MODEL_NAME = "gemini-2.0-flash-lite"
 MAX_RETRIES = 5
 RETRY_WAIT_SECONDS = 20
 
