@@ -1,7 +1,8 @@
 """
 generate_script.py -- ek horror script generate karta hai using Gemini (free tier).
 Script + title + description SAB EK HI API call mein generate karta hai
-(quota bachane ke liye -- pehle 2 calls the, ab sirf 1).
+(quota bachane ke liye). Script chhota rakha gaya hai (500-600 words) taaki
+per-minute token quota na tute.
 Quota/rate-limit error aane par khud retry karta hai.
 """
 
@@ -14,8 +15,8 @@ from config import GEMINI_API_KEY, TOPIC_POOL, SCRIPT_FILE, OUTPUT_DIR
 
 USED_TOPICS_FILE = "used_topics.json"
 MODEL_NAME = "gemini-2.0-flash-lite"
-MAX_RETRIES = 5
-RETRY_WAIT_SECONDS = 20
+MAX_RETRIES = 6
+RETRY_WAIT_SECONDS = 25
 
 
 def get_next_topic():
@@ -65,16 +66,17 @@ Topic: {topic}
 Mujhe teen cheezein chahiye, STRICTLY JSON format mein (koi extra text, koi markdown backticks nahi):
 
 {{
-  "script": "yahan pura 900-1100 words ka Hindi horror narration script",
+  "script": "yahan pura 500-600 words ka Hindi horror narration script",
   "title": "yahan YouTube title, max 80 characters",
   "description": "yahan YouTube description, 3-4 lines"
 }}
 
 Script rules:
+- Sirf 500-600 words, isse zyada mat likhna
 - Simple bolchaal ki Hindi (Hinglish thoda chalega but mostly Hindi)
 - Strong hook se shuru (pehle 10 second mein curiosity)
-- Slow build-up, phir climax, phir twist ending
-- Beech beech mein "dosto", "ab suniye aage" jaise engagement phrases
+- Chhota build-up, phir climax, phir twist ending
+- Beech mein "dosto" jaisa 1-2 engagement phrase
 - Sirf narration text, koi stage directions ya headings nahi
 - End mein "channel ko subscribe karo agli kahani ke liye" jaisa CTA
 
