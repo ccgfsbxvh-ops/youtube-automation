@@ -1,22 +1,16 @@
 """
-generate_script.py -- ek horror script generate karta hai using Gemini (free tier).
-Script + title + description SAB EK HI API call mein generate karta hai
-(quota bachane ke liye). Script chhota rakha gaya hai (500-600 words) taaki
-per-minute token quota na tute.
-Quota/rate-limit error aane par khud retry karta hai.
+generate_script.py -- Groq (free, generous quota) use karke horror script
+generate karta hai. Script + title + description ek hi call mein.
 """
 
 import json
 import os
 import random
-import time
-import google.generativeai as genai
-from config import GEMINI_API_KEY, TOPIC_POOL, SCRIPT_FILE, OUTPUT_DIR
+from groq import Groq
+from config import TOPIC_POOL, SCRIPT_FILE, OUTPUT_DIR
 
 USED_TOPICS_FILE = "used_topics.json"
-MODEL_NAME = "gemini-2.0-flash-lite"
-MAX_RETRIES = 6
-RETRY_WAIT_SECONDS = 25
+MODEL_NAME = "llama-3.3-70b-versatile"
 
 
 def get_next_topic():
@@ -39,26 +33,8 @@ def get_next_topic():
     return topic
 
 
-def _call_with_retry(model, prompt):
-    last_error = None
-    for attempt in range(1, MAX_RETRIES + 1):
-        try:
-            return model.generate_content(prompt)
-        except Exception as e:
-            last_error = e
-            msg = str(e)
-            if "429" in msg or "quota" in msg.lower() or "rate" in msg.lower():
-                wait = RETRY_WAIT_SECONDS * attempt
-                print(f"Quota/rate limit hit (attempt {attempt}/{MAX_RETRIES}). Waiting {wait}s...")
-                time.sleep(wait)
-                continue
-            raise
-    raise last_error
-
-
 def generate_everything(topic: str) -> dict:
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel(MODEL_NAME)
+    client = Groq(api_key=os.environ["GROQ_API_KEY"])
 
     prompt = f"""Tum ek expert Hindi horror story YouTube script writer ho.
 Topic: {topic}
@@ -72,21 +48,23 @@ Mujhe teen cheezein chahiye, STRICTLY JSON format mein (koi extra text, koi mark
 }}
 
 Script rules:
-- Sirf 500-600 words, isse zyada mat likhna
-- Simple bolchaal ki Hindi (Hinglish thoda chalega but mostly Hindi)
-- Strong hook se shuru (pehle 10 second mein curiosity)
+- Sirf 500-600 words
+- Simple bolchaal ki Hindi
+- Strong hook se shuru
 - Chhota build-up, phir climax, phir twist ending
-- Beech mein "dosto" jaisa 1-2 engagement phrase
-- Sirf narration text, koi stage directions ya headings nahi
-- End mein "channel ko subscribe karo agli kahani ke liye" jaisa CTA
-
-Title rules: curiosity-driven, emoji ok, Hindi/Hinglish.
-Description rules: story ka hook, subscribe request, phir hashtags.
+- Sirf narration text, koi headings nahi
+- End mein subscribe CTA
 
 Sirf JSON do, kuch aur nahi."""
 
-    response = _call_with_retry(model, prompt)
-    text = response.text.strip().replace("```json", "").replace("```", "").strip()
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.9,
+    )
+
+    text = response.choices[0].message.content.strip()
+    text = text.replace("```json", "").replace("```", "").strip()
     return json.loads(text)
 
 
