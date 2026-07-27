@@ -1,5 +1,4 @@
-
-        """
+"""
 assemble_video.py -- Pexels se topic-relevant horror B-roll download karta
 hai (keyword matching ke through, horror-mood explicit keywords ke saath),
 audio ko mute karta hai (original clip ka), aur poore 1920x1080 frame ko
