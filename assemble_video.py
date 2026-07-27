@@ -1,8 +1,9 @@
-"""
+
+        """
 assemble_video.py -- Pexels se topic-relevant horror B-roll download karta
-hai (keyword matching ke through), audio ko mute karta hai (original clip
-ka), aur poore 1920x1080 frame ko crop-to-fill se bharta hai (koi black
-bars nahi).
+hai (keyword matching ke through, horror-mood explicit keywords ke saath),
+audio ko mute karta hai (original clip ka), aur poore 1920x1080 frame ko
+crop-to-fill se bharta hai (koi black bars nahi).
 """
 
 import os
@@ -17,19 +18,20 @@ from config import PEXELS_API_KEY, AUDIO_FILE, VIDEO_FILE, OUTPUT_DIR
 CLIPS_DIR = f"{OUTPUT_DIR}/clips"
 TARGET_W, TARGET_H = 1920, 1080
 
-# Topic ke keywords se Pexels search-terms map karta hai.
-# Har entry: (topic mein dhoondhne wala keyword, us se related Pexels searches)
 TOPIC_KEYWORD_MAP = {
-    "school": ["empty school hallway", "old classroom", "abandoned school"],
-    "haveli": ["abandoned mansion", "old haunted house", "creepy mansion interior"],
-    "hostel": ["dark dormitory hallway", "empty hostel room", "old building corridor"],
-    "train": ["train at night", "empty train compartment", "train station fog"],
-    "kuan": ["old well", "dark well", "abandoned well countryside"],
-    "doctor": ["hospital corridor night", "empty hospital room", "dark hospital hallway"],
-    "dhaba": ["empty highway road night", "roadside dhaba night", "deserted highway fog"],
+    "school": ["creepy empty school hallway", "haunted abandoned school", "dark old classroom horror"],
+    "haveli": ["haunted mansion horror", "creepy abandoned mansion interior", "spooky old haveli dark"],
+    "hostel": ["dark creepy dormitory hallway", "haunted hostel room horror", "eerie building corridor night"],
+    "train": ["creepy train at night horror", "haunted train compartment eerie", "dark train station fog horror"],
+    "kuan": ["creepy old well horror", "haunted dark well night", "spooky abandoned well fog"],
+    "doctor": ["creepy hospital corridor horror", "haunted empty hospital room", "eerie dark hospital hallway night"],
+    "dhaba": ["creepy empty highway night horror", "haunted roadside dhaba fog", "eerie deserted highway night"],
 }
 
-FALLBACK_TERMS = ["dark forest night", "fog road night", "candle flame dark", "abandoned building"]
+FALLBACK_TERMS = [
+    "dark forest night horror", "creepy fog road night", "horror candle flame dark room",
+    "haunted abandoned building creepy", "eerie dark hallway horror", "spooky shadow silhouette dark"
+]
 
 
 def get_search_terms_for_topic(topic: str):
@@ -66,7 +68,6 @@ def download_stock_clips(topic: str, count=8):
 
         video = random.choice(videos)
         video_files = sorted(video["video_files"], key=lambda v: v.get("width", 0))
-        # medium quality file -- fast enough, still decent resolution
         file_url = video_files[len(video_files) // 2]["link"]
 
         out_path = f"{CLIPS_DIR}/clip_{i}.mp4"
@@ -82,7 +83,6 @@ def download_stock_clips(topic: str, count=8):
 
 
 def fit_crop_to_fill(clip, target_w=TARGET_W, target_h=TARGET_H):
-    """Clip ko bina black bars ke poore frame mein crop-to-fill karta hai."""
     clip_ratio = clip.w / clip.h
     target_ratio = target_w / target_h
 
@@ -117,7 +117,7 @@ def build_video(topic: str = ""):
         idx += 1
         try:
             c = VideoFileClip(path)
-            c = c.without_audio()  # original clip ka audio hamesha mute
+            c = c.without_audio()
         except Exception as e:
             print(f"Skipping unreadable clip {path}: {e}")
             continue
