@@ -1,92 +1,144 @@
 """
-assemble_video.py -- background footage + narration audio + captions ko combine
-karke final video banata hai.
-
-Approach: Pexels se dark/horror-themed stock video clips download karta hai,
-unhe loop/concat karke audio ki length tak stretch karta hai, aur simple
-burned-in captions overlay karta hai.
+assemble_video.py -- Pexels se topic-relevant horror B-roll download karta
+hai (keyword matching ke through), audio ko mute karta hai (original clip
+ka), aur poore 1920x1080 frame ko crop-to-fill se bharta hai (koi black
+bars nahi).
 """
 
 import os
-import json
 import random
 import requests
 from moviepy.editor import (
     VideoFileClip, AudioFileClip, concatenate_videoclips,
-    CompositeVideoClip, TextClip, ColorClip
+    CompositeVideoClip, ColorClip
 )
 from config import PEXELS_API_KEY, AUDIO_FILE, VIDEO_FILE, OUTPUT_DIR
 
-PEXELS_SEARCH_TERMS = [
-    "dark forest night", "abandoned house", "fog road night",
-    "old hallway", "candle flame dark", "empty street night"
-]
-
 CLIPS_DIR = f"{OUTPUT_DIR}/clips"
+TARGET_W, TARGET_H = 1920, 1080
+
+# Topic ke keywords se Pexels search-terms map karta hai.
+# Har entry: (topic mein dhoondhne wala keyword, us se related Pexels searches)
+TOPIC_KEYWORD_MAP = {
+    "school": ["empty school hallway", "old classroom", "abandoned school"],
+    "haveli": ["abandoned mansion", "old haunted house", "creepy mansion interior"],
+    "hostel": ["dark dormitory hallway", "empty hostel room", "old building corridor"],
+    "train": ["train at night", "empty train compartment", "train station fog"],
+    "kuan": ["old well", "dark well", "abandoned well countryside"],
+    "doctor": ["hospital corridor night", "empty hospital room", "dark hospital hallway"],
+    "dhaba": ["empty highway road night", "roadside dhaba night", "deserted highway fog"],
+}
+
+FALLBACK_TERMS = ["dark forest night", "fog road night", "candle flame dark", "abandoned building"]
 
 
-def download_stock_clips(count=6):
+def get_search_terms_for_topic(topic: str):
+    topic_lower = topic.lower()
+    matched_terms = []
+    for keyword, searches in TOPIC_KEYWORD_MAP.items():
+        if keyword in topic_lower:
+            matched_terms.extend(searches)
+
+    if not matched_terms:
+        matched_terms = FALLBACK_TERMS
+
+    return matched_terms
+
+
+def download_stock_clips(topic: str, count=8):
     os.makedirs(CLIPS_DIR, exist_ok=True)
     headers = {"Authorization": PEXELS_API_KEY}
+    search_terms = get_search_terms_for_topic(topic)
     paths = []
 
     for i in range(count):
-        term = random.choice(PEXELS_SEARCH_TERMS)
+        term = random.choice(search_terms)
         resp = requests.get(
             "https://api.pexels.com/videos/search",
             headers=headers,
-            params={"query": term, "per_page": 5, "orientation": "landscape"}
+            params={"query": term, "per_page": 6, "orientation": "landscape"}
         )
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            continue
         videos = resp.json().get("videos", [])
         if not videos:
             continue
 
         video = random.choice(videos)
-        # pick a mid-quality file to keep render fast
         video_files = sorted(video["video_files"], key=lambda v: v.get("width", 0))
+        # medium quality file -- fast enough, still decent resolution
         file_url = video_files[len(video_files) // 2]["link"]
 
         out_path = f"{CLIPS_DIR}/clip_{i}.mp4"
-        r = requests.get(file_url)
-        with open(out_path, "wb") as f:
-            f.write(r.content)
-        paths.append(out_path)
+        try:
+            r = requests.get(file_url, timeout=30)
+            with open(out_path, "wb") as f:
+                f.write(r.content)
+            paths.append(out_path)
+        except Exception as e:
+            print(f"Failed to download clip for '{term}': {e}")
 
     return paths
 
 
-def build_video():
+def fit_crop_to_fill(clip, target_w=TARGET_W, target_h=TARGET_H):
+    """Clip ko bina black bars ke poore frame mein crop-to-fill karta hai."""
+    clip_ratio = clip.w / clip.h
+    target_ratio = target_w / target_h
+
+    if clip_ratio > target_ratio:
+        new_height = target_h
+        new_width = int(clip.w * (target_h / clip.h))
+    else:
+        new_width = target_w
+        new_height = int(clip.h * (target_w / clip.w))
+
+    resized = clip.resize(newsize=(new_width, new_height))
+    cropped = resized.crop(
+        x_center=new_width / 2, y_center=new_height / 2,
+        width=target_w, height=target_h
+    )
+    return cropped
+
+
+def build_video(topic: str = ""):
     audio = AudioFileClip(AUDIO_FILE)
     target_duration = audio.duration
 
-    clip_paths = download_stock_clips(count=8)
+    clip_paths = download_stock_clips(topic, count=10)
     if not clip_paths:
-        raise RuntimeError("No stock clips downloaded -- check PEXELS_API_KEY")
+        raise RuntimeError("No stock clips downloaded -- check PEXELS_API_KEY or network")
 
     clips = []
     total = 0
+    idx = 0
     while total < target_duration:
-        for p in clip_paths:
-            c = VideoFileClip(p).without_audio()
-            clips.append(c)
-            total += c.duration
-            if total >= target_duration:
-                break
+        path = clip_paths[idx % len(clip_paths)]
+        idx += 1
+        try:
+            c = VideoFileClip(path)
+            c = c.without_audio()  # original clip ka audio hamesha mute
+        except Exception as e:
+            print(f"Skipping unreadable clip {path}: {e}")
+            continue
+
+        c = fit_crop_to_fill(c)
+        clips.append(c)
+        total += c.duration
 
     full = concatenate_videoclips(clips, method="compose")
     full = full.subclip(0, target_duration)
-    full = full.resize(height=1080)  # normalize resolution
 
-    # dark overlay for horror mood + readability of captions
-    overlay = ColorClip(size=full.size, color=(0, 0, 0)).set_opacity(0.35).set_duration(target_duration)
+    overlay = ColorClip(size=(TARGET_W, TARGET_H), color=(0, 0, 0)).set_opacity(0.35).set_duration(target_duration)
 
     final = CompositeVideoClip([full, overlay]).set_audio(audio)
     final.write_videofile(VIDEO_FILE, fps=24, codec="libx264", audio_codec="aac", threads=4)
 
-    # cleanup temp clips to save disk
     for p in clip_paths:
-        os.remove(p)
+        try:
+            os.remove(p)
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":
