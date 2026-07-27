@@ -30,10 +30,9 @@ def run():
     print(f"Title: {meta['title']}")
 
     print("== Step 2: Generating narration audio ==")
-    import asyncio
-    from tts import generate_audio
+    from tts import generate_audio_sync
     from config import AUDIO_FILE
-    asyncio.run(generate_audio(script, AUDIO_FILE))
+    generate_audio_sync(script, AUDIO_FILE)
 
     print("== Step 3: Assembling video ==")
     from assemble_video import build_video
