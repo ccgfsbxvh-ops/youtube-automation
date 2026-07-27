@@ -1,36 +1,13 @@
 """
-tts.py -- Priority order try karta hai: ElevenLabs (best quality, limited
-free quota) -> edge-tts (natural, kabhi kabhi Microsoft-side issue) ->
-gTTS (robotic but always works). Jo bhi pehle successfully chale, wahi use
-hoga -- isse pipeline kabhi bhi is step pe fail nahi hota.
+tts.py -- edge-tts (natural voice) try karta hai, fail hone par gTTS
+(reliable fallback) use karta hai. ElevenLabs free-tier API se voice
+generate nahi kar sakta (unki policy), isliye chain se hataya.
 """
 
-import os
 import asyncio
 from config import AUDIO_FILE
 
 EDGE_VOICE = "hi-IN-MadhurNeural"
-ELEVENLABS_VOICE_ID = "21m00Tcm4TlvDq8ikWAM"  # "Rachel" - default, badla ja sakta hai
-
-
-def _try_elevenlabs(text: str, output_path: str):
-    api_key = os.environ.get("ELEVENLABS_API_KEY")
-    if not api_key:
-        raise RuntimeError("ELEVENLABS_API_KEY not set")
-
-    from elevenlabs import ElevenLabs
-    client = ElevenLabs(api_key=api_key)
-
-    audio = client.text_to_speech.convert(
-        voice_id=ELEVENLABS_VOICE_ID,
-        text=text,
-        model_id="eleven_multilingual_v2",
-        output_format="mp3_44100_128",
-    )
-
-    with open(output_path, "wb") as f:
-        for chunk in audio:
-            f.write(chunk)
 
 
 async def _try_edge_tts_async(text: str, output_path: str):
@@ -50,13 +27,6 @@ def _try_gtts(text: str, output_path: str):
 
 
 def generate_audio_sync(text: str, output_path: str):
-    try:
-        _try_elevenlabs(text, output_path)
-        print("Used ElevenLabs (best quality)")
-        return
-    except Exception as e:
-        print(f"ElevenLabs failed/unavailable: {e}")
-
     try:
         _try_edge_tts(text, output_path)
         print("Used edge-tts (natural voice)")
