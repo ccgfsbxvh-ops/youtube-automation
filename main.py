@@ -36,7 +36,7 @@ def run():
 
     print("== Step 3: Assembling video ==")
     from assemble_video import build_video
-    build_video()
+    build_video(topic=topic)
 
     print("== Step 4: Creating thumbnail ==")
     from thumbnail import build_thumbnail
